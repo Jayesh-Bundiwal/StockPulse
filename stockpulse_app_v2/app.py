@@ -14,6 +14,8 @@ from routes.reports import reports_bp
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.secret_key = SECRET_KEY
 
+init_db()  # Initialize the database connection
+
 app.register_blueprint(auth_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(sales_bp)
@@ -29,5 +31,4 @@ def index():
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, host="127.0.0.1", port=5000)
