@@ -78,8 +78,8 @@ def executemany(conn, sql, seq_of_params):
 
 
 def init_db():
-    """Create the database (if missing), tables, and seed data. Safe to call every run."""
-    # Step 1: make sure the database itself exists.
+    """Create the database (if missing), tables, schema migrations, and seed data."""
+    # Step 1: Make sure the database itself exists.
     bootstrap = _connect(with_database=False)
     try:
         with bootstrap.cursor() as cur:
@@ -91,7 +91,7 @@ def init_db():
     finally:
         bootstrap.close()
 
-    # Step 2: connect to the actual database and create tables.
+    # Step 2: Connect to the actual database and create tables.
     conn = get_db()
     try:
         with conn.cursor() as cur:
@@ -104,9 +104,23 @@ def init_db():
                     price DOUBLE NOT NULL,
                     cost DOUBLE NOT NULL,
                     stock INT NOT NULL,
-                    threshold_qty INT NOT NULL
+                    threshold_qty INT NOT NULL,
+                    lead_time_days INT DEFAULT 7,
+                    safety_stock INT DEFAULT 10
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
+
+            # Ensure lead_time_days and safety_stock exist for pre-existing tables
+            try:
+                cur.execute("ALTER TABLE products ADD COLUMN lead_time_days INT DEFAULT 7")
+            except pymysql.MySQLError:
+                pass  # Column already exists
+
+            try:
+                cur.execute("ALTER TABLE products ADD COLUMN safety_stock INT DEFAULT 10")
+            except pymysql.MySQLError:
+                pass  # Column already exists
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -138,7 +152,7 @@ def init_db():
             """)
         conn.commit()
 
-        # Seed users.
+        # Seed users
         if query_one(conn, "SELECT COUNT(*) AS c FROM users")["c"] == 0:
             executemany(
                 conn,
@@ -146,7 +160,7 @@ def init_db():
                 SEED_USERS,
             )
 
-        # Seed products.
+        # Seed products
         if query_one(conn, "SELECT COUNT(*) AS c FROM products")["c"] == 0:
             executemany(
                 conn,
@@ -155,7 +169,7 @@ def init_db():
                 SEED_PRODUCTS,
             )
 
-        # Seed ~30 days of sales history.
+        # Seed ~30 days of sales history
         if query_one(conn, "SELECT COUNT(*) AS c FROM sales")["c"] == 0:
             products = query_all(conn, "SELECT id, price FROM products")
             product_ids = [p["id"] for p in products]
